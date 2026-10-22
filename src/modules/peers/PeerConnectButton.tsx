@@ -10,6 +10,7 @@ import * as React from "react";
 import { usePeer } from "@/contexts/PeerProvider";
 import { OperatingSystem } from "@/interfaces/OperatingSystem";
 import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
+import { RustDeskButton } from "@/modules/remote-access/rustdesk/RustDeskButton";
 import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
 import { cn } from "@utils/helpers";
 
@@ -43,6 +44,7 @@ export const PeerConnectButton = () => {
         >
           <SSHButton peer={peer} isDropdown={true} />
           <RDPButton peer={peer} isDropdown={true} />
+          <RustDeskButton peer={peer} isDropdown={true} />
         </DropdownMenuContent>
       </DropdownMenu>
     </>

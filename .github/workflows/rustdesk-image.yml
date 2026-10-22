@@ -1,0 +1,159 @@
+name: rustdesk-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag upstream de netbirdio/dashboard (vacio = ultimo release)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "17 5 * * *"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  UPSTREAM: netbirdio/dashboard
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolver tag upstream
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          TAG="$INPUT_TAG"
+          if [ -z "$TAG" ]; then
+            TAG=$(gh api repos/${UPSTREAM}/releases/latest --jq .tag_name)
+          fi
+          [ -n "$TAG" ] || { echo "::error::No se pudo resolver el tag upstream"; exit 1; }
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${OWNER}/netbird-dashboard" >> "$GITHUB_OUTPUT"
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comprobar si la imagen ya existe
+        id: exists
+        run: |
+          REF="${{ steps.resolve.outputs.image }}:${{ steps.resolve.outputs.tag }}-rustdesk"
+          if docker buildx imagetools inspect "$REF" >/dev/null 2>&1; then
+            echo "Ya existe $REF, nada que hacer"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout fork (patch)
+        if: steps.exists.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          path: fork
+          persist-credentials: false
+
+      - name: Checkout upstream
+        if: steps.exists.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UPSTREAM }}
+          ref: ${{ steps.resolve.outputs.tag }}
+          path: src
+          persist-credentials: false
+
+      - name: Aplicar patch RustDesk
+        if: steps.exists.outputs.skip != 'true'
+        working-directory: src
+        run: |
+          if ! git apply --check ../fork/patches/rustdesk-button.patch; then
+            echo "::error::El patch rustdesk-button.patch NO aplica sobre upstream ${{ steps.resolve.outputs.tag }}. Hay que rehacerlo en el fork (rama rustdesk)."
+            exit 1
+          fi
+          git apply ../fork/patches/rustdesk-button.patch
+
+      - name: setup-node
+        if: steps.exists.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: src/package-lock.json
+
+      - name: Install dependencies
+        if: steps.exists.outputs.skip != 'true'
+        working-directory: src
+        run: npm install
+
+      - name: Config local
+        if: steps.exists.outputs.skip != 'true'
+        working-directory: src
+        run: echo '{}' > .local-config.json
+
+      - name: Download IronRDP (ts)
+        if: steps.exists.outputs.skip != 'true'
+        uses: robinraju/release-downloader@v1.13
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: netbirdio/IronRDP
+          tag: v0.0.2
+          fileName: "*.ts"
+          out-file-path: src/public/ironrdp-pkg
+
+      - name: Download IronRDP (js)
+        if: steps.exists.outputs.skip != 'true'
+        uses: robinraju/release-downloader@v1.13
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: netbirdio/IronRDP
+          tag: v0.0.2
+          fileName: "*.js"
+          out-file-path: src/public/ironrdp-pkg
+
+      - name: Download IronRDP (wasm)
+        if: steps.exists.outputs.skip != 'true'
+        uses: robinraju/release-downloader@v1.13
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: netbirdio/IronRDP
+          tag: v0.0.2
+          fileName: "ironrdp_web_bg.wasm"
+          out-file-path: src/public/ironrdp-pkg
+
+      - name: Build
+        if: steps.exists.outputs.skip != 'true'
+        working-directory: src
+        run: npm run build
+        env:
+          NEXT_PUBLIC_DASHBOARD_VERSION: ${{ steps.resolve.outputs.tag }}-rustdesk
+
+      - name: Setup buildx
+        if: steps.exists.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        if: steps.exists.outputs.skip != 'true'
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: src
+          file: src/docker/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.resolve.outputs.image }}:${{ steps.resolve.outputs.tag }}-rustdesk
+            ${{ steps.resolve.outputs.image }}:latest-rustdesk
+
+      - name: Resumen
+        if: steps.exists.outputs.skip != 'true'
+        run: |
+          echo "### Imagen publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.resolve.outputs.image }}:${{ steps.resolve.outputs.tag }}-rustdesk@${{ steps.push.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"

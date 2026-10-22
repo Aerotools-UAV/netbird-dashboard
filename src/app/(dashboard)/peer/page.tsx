@@ -71,6 +71,7 @@ import { ReverseProxyFlatTargetsTabContent } from "@/modules/reverse-proxy/targe
 import { PeerEditIPModal } from "@/modules/peer/PeerEditIPModal";
 import { PeerSSHToggle } from "@/modules/peer/PeerSSHToggle";
 import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
+import { RustDeskButton } from "@/modules/remote-access/rustdesk/RustDeskButton";
 import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
 import { PeerExpirationSettings } from "@/modules/peer/PeerExpirationSettings";
 
@@ -466,6 +467,7 @@ const PeerOverviewTabContent = () => {
             <div className="flex gap-3">
               <SSHButton peer={peer} />
               <RDPButton peer={peer} />
+              <RustDeskButton peer={peer} />
             </div>
           </div>
         </div>

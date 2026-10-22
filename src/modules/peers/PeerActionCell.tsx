@@ -31,6 +31,7 @@ import { OperatingSystem } from "@/interfaces/OperatingSystem";
 import { ExitNodeDropdownButton } from "@/modules/exit-node/ExitNodeDropdownButton";
 import { useIntegrations } from "@/modules/integrations/edr/useIntegrations";
 import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
+import { RustDeskButton } from "@/modules/remote-access/rustdesk/RustDeskButton";
 import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
 import InlineLink from "@components/InlineLink";
 import { useDialog } from "@/contexts/DialogProvider";
@@ -260,6 +261,7 @@ export default function PeerActionCell() {
               <DropdownMenuSeparator />
               <SSHButton peer={peer} isDropdown={true} />
               <RDPButton peer={peer} isDropdown={true} />
+              <RustDeskButton peer={peer} isDropdown={true} />
             </>
           )}
 

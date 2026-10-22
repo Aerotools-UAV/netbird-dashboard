@@ -1,0 +1,149 @@
+diff --git i/src/app/(dashboard)/peer/page.tsx w/src/app/(dashboard)/peer/page.tsx
+index 4fc378a..f92a8f4 100644
+--- i/src/app/(dashboard)/peer/page.tsx
++++ w/src/app/(dashboard)/peer/page.tsx
+@@ -71,6 +71,7 @@ import { ReverseProxyFlatTargetsTabContent } from "@/modules/reverse-proxy/targe
+ import { PeerEditIPModal } from "@/modules/peer/PeerEditIPModal";
+ import { PeerSSHToggle } from "@/modules/peer/PeerSSHToggle";
+ import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
++import { RustDeskButton } from "@/modules/remote-access/rustdesk/RustDeskButton";
+ import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
+ import { PeerExpirationSettings } from "@/modules/peer/PeerExpirationSettings";
+ 
+@@ -466,6 +467,7 @@ const PeerOverviewTabContent = () => {
+             <div className="flex gap-3">
+               <SSHButton peer={peer} />
+               <RDPButton peer={peer} />
++              <RustDeskButton peer={peer} />
+             </div>
+           </div>
+         </div>
+diff --git i/src/modules/peers/PeerActionCell.tsx w/src/modules/peers/PeerActionCell.tsx
+index 095cd17..ce17a7e 100644
+--- i/src/modules/peers/PeerActionCell.tsx
++++ w/src/modules/peers/PeerActionCell.tsx
+@@ -31,6 +31,7 @@ import { OperatingSystem } from "@/interfaces/OperatingSystem";
+ import { ExitNodeDropdownButton } from "@/modules/exit-node/ExitNodeDropdownButton";
+ import { useIntegrations } from "@/modules/integrations/edr/useIntegrations";
+ import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
++import { RustDeskButton } from "@/modules/remote-access/rustdesk/RustDeskButton";
+ import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
+ import InlineLink from "@components/InlineLink";
+ import { useDialog } from "@/contexts/DialogProvider";
+@@ -260,6 +261,7 @@ export default function PeerActionCell() {
+               <DropdownMenuSeparator />
+               <SSHButton peer={peer} isDropdown={true} />
+               <RDPButton peer={peer} isDropdown={true} />
++              <RustDeskButton peer={peer} isDropdown={true} />
+             </>
+           )}
+ 
+diff --git i/src/modules/peers/PeerConnectButton.tsx w/src/modules/peers/PeerConnectButton.tsx
+index 5717ea3..5982c2a 100644
+--- i/src/modules/peers/PeerConnectButton.tsx
++++ w/src/modules/peers/PeerConnectButton.tsx
+@@ -10,6 +10,7 @@ import * as React from "react";
+ import { usePeer } from "@/contexts/PeerProvider";
+ import { OperatingSystem } from "@/interfaces/OperatingSystem";
+ import { RDPButton } from "@/modules/remote-access/rdp/RDPButton";
++import { RustDeskButton } from "@/modules/remote-access/rustdesk/RustDeskButton";
+ import { SSHButton } from "@/modules/remote-access/ssh/SSHButton";
+ import { cn } from "@utils/helpers";
+ 
+@@ -43,6 +44,7 @@ export const PeerConnectButton = () => {
+         >
+           <SSHButton peer={peer} isDropdown={true} />
+           <RDPButton peer={peer} isDropdown={true} />
++          <RustDeskButton peer={peer} isDropdown={true} />
+         </DropdownMenuContent>
+       </DropdownMenu>
+     </>
+diff --git 1/src/modules/remote-access/rustdesk/RustDeskButton.tsx 2/src/modules/remote-access/rustdesk/RustDeskButton.tsx
+new file mode 100644
+index 0000000..0bc6a7d
+--- /dev/null
++++ 2/src/modules/remote-access/rustdesk/RustDeskButton.tsx
+@@ -0,0 +1,83 @@
++import Button from "@components/Button";
++import { DropdownMenuItem } from "@components/DropdownMenu";
++import FullTooltip from "@components/FullTooltip";
++import { getOperatingSystem } from "@hooks/useOperatingSystem";
++import { CircleHelpIcon, MonitorSmartphoneIcon } from "lucide-react";
++import * as React from "react";
++import { usePermissions } from "@/contexts/PermissionsProvider";
++import { OperatingSystem } from "@/interfaces/OperatingSystem";
++import { Peer } from "@/interfaces/Peer";
++
++type Props = {
++  peer: Peer;
++  isDropdown?: boolean;
++};
++
++const RUSTDESK_PORT = 21118;
++
++export const RustDeskButton = ({ peer, isDropdown = false }: Props) => {
++  const { permission } = usePermissions();
++
++  const os = getOperatingSystem(peer?.os);
++  if (os === OperatingSystem.IOS || os === OperatingSystem.ANDROID) {
++    return null;
++  }
++
++  const disabled = !peer.connected || !permission.peers.update;
++  const hasPermission = permission.peers.update;
++
++  const openRustDesk = () => {
++    window.location.href = `rustdesk://${peer.ip}:${RUSTDESK_PORT}`;
++  };
++
++  return (
++    <div>
++      <FullTooltip
++        className={"w-full"}
++        side={isDropdown ? "left" : "top"}
++        content={
++          <div className={"max-w-xs text-xs flex flex-col gap-2"}>
++            {!peer.connected ? (
++              <div>Peer offline</div>
++            ) : hasPermission ? (
++              <div>
++                Abre RustDesk (debe estar instalado) contra la IP Netbird del
++                peer, puerto {RUSTDESK_PORT} (conexión directa).
++              </div>
++            ) : (
++              <div>
++                You do not have permission to launch a RustDesk session. Please
++                contact your administrator.
++              </div>
++            )}
++          </div>
++        }
++        disabled={!disabled}
++      >
++        {isDropdown ? (
++          <DropdownMenuItem
++            onClick={openRustDesk}
++            disabled={disabled}
++            className={"w-full"}
++          >
++            <div className={"flex gap-3 items-center w-full"}>
++              <MonitorSmartphoneIcon size={14} className={"shrink-0"} />
++              RustDesk
++            </div>
++          </DropdownMenuItem>
++        ) : (
++          <Button
++            variant="secondary"
++            size="sm"
++            onClick={openRustDesk}
++            disabled={disabled}
++          >
++            <MonitorSmartphoneIcon size={16} />
++            RustDesk
++            {disabled && <CircleHelpIcon size={12} />}
++          </Button>
++        )}
++      </FullTooltip>
++    </div>
++  );
++};
